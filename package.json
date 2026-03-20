@@ -1,0 +1,21 @@
+{
+  "name": "backend-mongo",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "expo-linear-gradient": "^55.0.9",
+    "express": "^5.2.1",
+    "mongoose": "^9.3.0",
+    "react-native-paper": "^5.15.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
