@@ -13,7 +13,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Cấu hình CORS chi tiết hơn
 app.use(cors({
-  origin: ['https://duca-mocha.vercel.app', 'http://localhost:19006', 'http://localhost:8081', '*'], // Thêm các origin phổ biến
+  origin: ['https://duca-mocha.vercel.app', 'https://menu-duca.vercel.app', 'http://localhost:19006', 'http://localhost:8081', '*'], // Thêm các origin phổ biến
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
