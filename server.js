@@ -133,11 +133,49 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Lấy menu cho nhân viên / chủ
+// Lấy menu cho nhân viên / chủ (có phân trang và lọc)
 app.get('/menu', async (req, res) => {
   try {
-    const items = await MenuItem.find({ isActive: true }).sort({ createdAt: 1 });
-    res.json(items);
+    const { page = 1, limit = 6, q, category } = req.query;
+    let query = { isActive: true };
+    
+    if (q) {
+      query.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { nameEn: { $regex: q, $options: 'i' } }
+      ];
+    }
+    
+    if (category && category !== 'all') {
+      query.$or = query.$or || [];
+      // Lọc theo nhiều trường category có thể có
+      const catQuery = {
+        $or: [
+          { category: category },
+          { categoryName: category },
+          { categoryTitle: category },
+          { type: category }
+        ]
+      };
+      if (query.$or.length > 0) {
+        query = { $and: [{ $or: query.$or }, catQuery] };
+      } else {
+        query = catQuery;
+      }
+    }
+
+    const total = await MenuItem.countDocuments(query);
+    const items = await MenuItem.find(query)
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .limit(parseInt(limit))
+      .sort({ createdAt: 1 });
+
+    res.json({
+      items,
+      total,
+      hasMore: (parseInt(page) * parseInt(limit)) < total,
+      page: parseInt(page)
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Lỗi server' });
@@ -187,6 +225,42 @@ app.delete('/menu/:id', async (req, res) => {
   }
 });
 
+// Lấy danh sách danh mục duy nhất
+app.get('/categories', async (req, res) => {
+  try {
+    const categories = await MenuItem.distinct('category', { isActive: true });
+    // Lọc bỏ null/empty và trả về
+    res.json(categories.filter(Boolean));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Lấy danh sách user (nhân viên) với phân trang
+app.get('/users', async (req, res) => {
+  try {
+    const { page = 1, limit = 6, role = 'nhan_vien' } = req.query;
+    const query = { role };
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .select('-password') // Không trả về mật khẩu
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    res.json({
+      items: users,
+      total,
+      hasMore: (parseInt(page) * parseInt(limit)) < total,
+      page: parseInt(page)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
 // Tạo order (nhân viên xác nhận order, lưu doanh thu)
 app.post('/orders', async (req, res) => {
   try {
@@ -216,11 +290,36 @@ app.post('/orders', async (req, res) => {
   }
 });
 
-// Danh sách order (quản lý bill)
+// Danh sách order (quản lý bill) với phân trang và lọc
 app.get('/orders', async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
-    res.json(orders);
+    const { page = 1, limit = 6, email, date } = req.query;
+    let query = {};
+    
+    if (email) {
+      query.createdByEmail = email;
+    }
+    
+    if (date) {
+      // date format: YYYY-MM-DD
+      const start = new Date(`${date}T00:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      query.createdAt = { $gte: start, $lt: end };
+    }
+
+    const total = await Order.countDocuments(query);
+    const orders = await Order.find(query)
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    res.json({
+      items: orders,
+      total,
+      hasMore: (parseInt(page) * parseInt(limit)) < total,
+      page: parseInt(page)
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Lỗi server' });
