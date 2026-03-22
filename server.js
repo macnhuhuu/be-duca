@@ -38,7 +38,9 @@ const userSchema = new mongoose.Schema(
 const menuItemSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
+    nameEn: { type: String, default: '' },
     price: { type: Number, required: true },
+    category: { type: String, default: '' },
     imageUrl: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
   },
@@ -145,11 +147,11 @@ app.get('/menu', async (req, res) => {
 // Thêm món (cho chủ)
 app.post('/menu', async (req, res) => {
   try {
-    const { name, price, imageUrl } = req.body;
+    const { name, nameEn, price, imageUrl, category } = req.body;
     if (!name || typeof price !== 'number') {
       return res.status(400).json({ message: 'Tên món và giá là bắt buộc' });
     }
-    const item = await MenuItem.create({ name, price, imageUrl });
+    const item = await MenuItem.create({ name, nameEn, price, imageUrl, category });
     res.status(201).json(item);
   } catch (err) {
     console.error(err);
@@ -160,10 +162,10 @@ app.post('/menu', async (req, res) => {
 // Sửa món
 app.put('/menu/:id', async (req, res) => {
   try {
-    const { name, price, isActive, imageUrl } = req.body;
+    const { name, nameEn, price, isActive, imageUrl, category } = req.body;
     const item = await MenuItem.findByIdAndUpdate(
       req.params.id,
-      { name, price, isActive, imageUrl },
+      { name, nameEn, price, isActive, imageUrl, category },
       { new: true }
     );
     if (!item) return res.status(404).json({ message: 'Không tìm thấy món' });
