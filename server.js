@@ -1,5 +1,7 @@
 require('dotenv').config();
+const http = require('http');
 const express = require('express');
+const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const { v2: cloudinary } = require('cloudinary');
@@ -8,6 +10,10 @@ const escpos = require('escpos');
 escpos.Network = require('escpos-network');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { 
+  cors: { origin: "*", methods: ["GET", "POST"] } 
+});
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -119,6 +125,20 @@ const Counter   = mongoose.model('Counter', counterSchema);
 const ActiveCart = mongoose.model('ActiveCart', activeCartSchema);
 const Config    = mongoose.model('Config', configSchema);
 const PushSub   = mongoose.model('PushSub', pushSubSchema);
+
+// ─── Socket.io Logic ────────────────────────────────────────────────────────
+io.on('connection', (socket) => {
+  console.log('[Socket] New client connected:', socket.id);
+  
+  socket.on('join_shop', () => {
+    socket.join('shop_room');
+    console.log(`[Socket] Client ${socket.id} joined shop_room`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('[Socket] Client disconnected');
+  });
+});
 
 // ─── Printer Helper ──────────────────────────────────────────────────────────
 const removeAccents = (str) => {
@@ -465,6 +485,9 @@ app.post('/orders', async (req, res) => {
     // Tự động in về quán (Direct Print) và lấy kết quả
     const printResult = await printOrderToShop(savedOrder);
 
+    // Gửi tín hiệu in qua Socket.io (Dành cho Print Hub tại quán)
+    io.to('shop_room').emit('print_trigger', savedOrder);
+
     res.status(201).json({ 
       message: 'Order created', 
       order: savedOrder,
@@ -750,12 +773,14 @@ app.post('/orders/:id/print', async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order nout found' });
     const printResult = await printOrderToShop(order);
+    // Also trigger via Socket for the Print Hub at the shop
+    io.to('shop_room').emit('print_trigger', order);
     res.json({ printStatus: printResult });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server listening on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
 });
