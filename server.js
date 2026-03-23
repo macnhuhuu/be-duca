@@ -6,7 +6,6 @@ const { v2: cloudinary } = require('cloudinary');
 const webpush = require('web-push');
 const escpos = require('escpos');
 escpos.Network = require('escpos-network');
-const { createCanvas, Image } = require('canvas');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
