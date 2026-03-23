@@ -331,7 +331,7 @@ app.post('/orders', async (req, res) => {
     );
 
     const billSeq = counter.seq.toString().padStart(6, '0');
-    const billId = `HD#${billSeq}`;
+    const billId = `HD${billSeq}`;
 
     const total = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
 
