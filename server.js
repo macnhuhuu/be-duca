@@ -68,10 +68,17 @@ const orderSchema = new mongoose.Schema(
     total: { type: Number, required: true },
     createdByEmail: String,
     tableNumber: { type: Number, default: 0 },
+    billId: String, // e.g. HD#000001
   },
   { timestamps: true }
 );
 
+const counterSchema = new mongoose.Schema({
+  id: { type: String, required: true },
+  seq: { type: Number, default: 0 },
+});
+
+const Counter = mongoose.model('Counter', counterSchema);
 const User = mongoose.model('User', userSchema);
 const MenuItem = mongoose.model('MenuItem', menuItemSchema);
 const Order = mongoose.model('Order', orderSchema);
@@ -299,6 +306,16 @@ app.post('/orders', async (req, res) => {
       return res.status(400).json({ message: 'Đơn hàng không có món' });
     }
 
+    // Tăng số thứ tự hóa đơn (Atomatic counter)
+    const counter = await Counter.findOneAndUpdate(
+      { id: 'order_number' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
+    const billSeq = counter.seq.toString().padStart(6, '0');
+    const billId = `HD#${billSeq}`;
+
     const total = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
 
     const newOrder = new Order({
@@ -306,6 +323,7 @@ app.post('/orders', async (req, res) => {
       total,
       createdByEmail: createdByEmail || null,
       tableNumber: tableNumber || 0,
+      billId,
     });
     await newOrder.save();
 
