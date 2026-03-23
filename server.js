@@ -88,6 +88,18 @@ app.post('/upload', async (req, res) => {
     const { data } = req.body;
     if (!data) return res.status(400).json({ message: 'Thiếu dữ liệu ảnh' });
 
+    // Kiểm tra xem đã config Cloudinary chưa
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(500).json({ 
+        message: 'Lỗi cấu hình Cloudinary trên server (thiếu biến môi trường)',
+        missing: {
+          name: !process.env.CLOUDINARY_CLOUD_NAME,
+          key: !process.env.CLOUDINARY_API_KEY,
+          secret: !process.env.CLOUDINARY_API_SECRET
+        }
+      });
+    }
+
     const result = await cloudinary.uploader.upload(data, {
       folder: 'duca-menu',
       transformation: [{ width: 600, crop: 'limit', quality: 'auto:good', fetch_format: 'auto' }],
