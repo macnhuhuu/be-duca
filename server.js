@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const { v2: cloudinary } = require('cloudinary');
+const webpush = require('web-push');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,7 +20,7 @@ cloudinary.config({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Cấu hình CORS chi tiết hơn
+// CORS
 app.use(cors({
   origin: ['https://duca-mocha.vercel.app', 'https://menu-duca.vercel.app', 'http://localhost:19006', 'http://localhost:8081', '*'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -30,10 +31,13 @@ app.use(cors({
 // Connect MongoDB Atlas
 mongoose
   .connect(MONGO_URI)
-  .then(() => console.log('✅ MongoDB Atlas connected!'))
+  .then(async () => {
+    console.log('✅ MongoDB Atlas connected!');
+    await initVAPID();
+  })
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// User model đơn giản
+// ─── Schemas ─────────────────────────────────────────────────────────────────
 const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
@@ -66,9 +70,10 @@ const orderSchema = new mongoose.Schema(
       },
     ],
     total: { type: Number, required: true },
+    discount: { type: Number, default: 0 },
     createdByEmail: String,
     tableNumber: { type: Number, default: 0 },
-    billId: String, // e.g. HD#000001
+    billId: String,
   },
   { timestamps: true }
 );
@@ -77,8 +82,6 @@ const counterSchema = new mongoose.Schema({
   id: { type: String, required: true },
   seq: { type: Number, default: 0 },
 });
-
-const Counter = mongoose.model('Counter', counterSchema);
 
 const activeCartSchema = new mongoose.Schema({
   tableNumber: { type: Number, unique: true, required: true },
@@ -94,11 +97,76 @@ const activeCartSchema = new mongoose.Schema({
   updatedByEmail: String,
 }, { timestamps: true });
 
-const ActiveCart = mongoose.model('ActiveCart', activeCartSchema);
+const configSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: mongoose.Schema.Types.Mixed,
+});
 
-const User = mongoose.model('User', userSchema);
-const MenuItem = mongoose.model('MenuItem', menuItemSchema);
-const Order = mongoose.model('Order', orderSchema);
+const pushSubSchema = new mongoose.Schema({
+  endpoint: { type: String, required: true, unique: true },
+  keys: { p256dh: String, auth: String },
+  email: String,
+  role: String,
+}, { timestamps: true });
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+const User      = mongoose.model('User', userSchema);
+const MenuItem  = mongoose.model('MenuItem', menuItemSchema);
+const Order     = mongoose.model('Order', orderSchema);
+const Counter   = mongoose.model('Counter', counterSchema);
+const ActiveCart = mongoose.model('ActiveCart', activeCartSchema);
+const Config    = mongoose.model('Config', configSchema);
+const PushSub   = mongoose.model('PushSub', pushSubSchema);
+
+// ─── VAPID Setup ─────────────────────────────────────────────────────────────
+let vapidPublicKey  = process.env.VAPID_PUBLIC_KEY  || '';
+let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '';
+
+async function initVAPID() {
+  try {
+    if (!vapidPublicKey || !vapidPrivateKey) {
+      const cfg = await Config.findOne({ key: 'vapid' });
+      if (cfg) {
+        vapidPublicKey  = cfg.value.publicKey;
+        vapidPrivateKey = cfg.value.privateKey;
+      } else {
+        const keys = webpush.generateVAPIDKeys();
+        vapidPublicKey  = keys.publicKey;
+        vapidPrivateKey = keys.privateKey;
+        await Config.create({ key: 'vapid', value: keys });
+        console.log('🔑 VAPID keys generated – thêm vào Railway env:');
+        console.log('VAPID_PUBLIC_KEY=' + vapidPublicKey);
+        console.log('VAPID_PRIVATE_KEY=' + vapidPrivateKey);
+      }
+    }
+    webpush.setVapidDetails('mailto:admin@duca.vn', vapidPublicKey, vapidPrivateKey);
+    console.log('✅ VAPID ready');
+  } catch (e) {
+    console.error('❌ VAPID init error:', e.message);
+  }
+}
+
+// Gửi push đến tất cả admin (role: chu)
+async function notifyAdmins(payload) {
+  try {
+    const subs = await PushSub.find({ role: 'chu' });
+    await Promise.all(subs.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: sub.keys },
+          JSON.stringify(payload)
+        );
+      } catch (e) {
+        // Xóa subscription hết hạn
+        if (e.statusCode === 410 || e.statusCode === 404) {
+          await PushSub.deleteOne({ _id: sub._id });
+        }
+      }
+    }));
+  } catch (e) {
+    console.error('Push notify error:', e.message);
+  }
+}
 
 // ─── Health check ────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -106,16 +174,13 @@ app.get('/', (req, res) => {
 });
 
 // ─── Upload ảnh lên Cloudinary ───────────────────────────────────────────────
-// Body: { data: "data:image/jpeg;base64,..." }
-// Response: { url: "https://res.cloudinary.com/..." }
 app.post('/upload', async (req, res) => {
   try {
     const { data } = req.body;
     if (!data) return res.status(400).json({ message: 'Thiếu dữ liệu ảnh' });
 
-    // Kiểm tra xem đã config Cloudinary chưa
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      return res.status(500).json({ 
+      return res.status(500).json({
         message: 'Lỗi cấu hình Cloudinary trên server (thiếu biến môi trường)',
         missing: {
           name: !process.env.CLOUDINARY_CLOUD_NAME,
@@ -133,7 +198,7 @@ app.post('/upload', async (req, res) => {
     res.json({ url: result.secure_url });
   } catch (err) {
     console.error('Cloudinary upload error:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Upload ảnh thất bại: ' + (err.message || 'Lỗi không xác định'),
       details: err.error_code || err.name
     });
@@ -141,39 +206,6 @@ app.post('/upload', async (req, res) => {
 });
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
-app.post('/register', async (req, res) => {
-  try {
-    const { email, password, role, code } = req.body;
-
-    if (!email || !password || !role || !code) {
-      return res.status(400).json({ message: 'Vui lòng nhập đầy đủ thông tin' });
-    }
-
-    if (role === 'nhan_vien' && code !== '2507') {
-      return res.status(400).json({ message: 'Mã xác thực nhân viên không đúng (phải là 2507)' });
-    }
-
-    if (role === 'chu' && code !== '250704') {
-      return res.status(400).json({ message: 'Mã xác thực chủ không đúng (phải là 250704)' });
-    }
-
-    const existing = await User.findOne({ email });
-    if (existing) {
-      return res.status(409).json({ message: 'Email đã được sử dụng' });
-    }
-
-    const user = await User.create({ email, password, role });
-
-    return res.status(201).json({
-      message: 'Đăng ký thành công',
-      user: { id: user._id, email: user.email, role: user.role },
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -230,9 +262,8 @@ app.get('/menu', async (req, res) => {
       .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit))
       .sort({ createdAt: -1 })
-      .select('-__v'); // bỏ __v để giảm payload
+      .select('-__v');
 
-    // Cache 60 giây – giúp browser/CDN cache response
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=30');
     res.json({
       items,
@@ -306,7 +337,6 @@ app.delete('/menu/:id', async (req, res) => {
 app.get('/categories', async (req, res) => {
   try {
     const categories = await MenuItem.distinct('category', { isActive: true });
-    // Cache 5 phút – danh mục ít thay đổi
     res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
     res.json(categories.filter(Boolean));
   } catch (err) {
@@ -318,12 +348,12 @@ app.get('/categories', async (req, res) => {
 // ─── Orders ──────────────────────────────────────────────────────────────────
 app.post('/orders', async (req, res) => {
   try {
-    const { items, createdByEmail, tableNumber } = req.body;
+    const { items, createdByEmail, tableNumber, discount = 0, total: sentTotal } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Đơn hàng không có món' });
     }
 
-    // Tăng số thứ tự hóa đơn (Atomatic counter)
+    // Tăng số thứ tự hóa đơn
     const counter = await Counter.findOneAndUpdate(
       { id: 'order_number' },
       { $inc: { seq: 1 } },
@@ -333,16 +363,28 @@ app.post('/orders', async (req, res) => {
     const billSeq = counter.seq.toString().padStart(6, '0');
     const billId = `HD${billSeq}`;
 
-    const total = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+    // Dùng total từ client (đã trừ chiết khấu) hoặc tính lại
+    const subTotal = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+    const total = (typeof sentTotal === 'number') ? sentTotal : Math.max(0, subTotal - (discount || 0));
 
     const newOrder = new Order({
       items,
       total,
+      discount: discount || 0,
       createdByEmail: createdByEmail || null,
       tableNumber: tableNumber || 0,
       billId,
     });
     await newOrder.save();
+
+    // Gửi push notification đến admin
+    notifyAdmins({
+      title: '🔔 Đơn mới từ nhân viên',
+      body: `Bàn ${tableNumber || '?'} – ${billId} – ${total.toLocaleString('vi-VN')} đ`,
+      billId,
+      tableNumber,
+      total,
+    });
 
     res.set('Cache-Control', 'no-store');
     return res.status(201).json({ message: 'Tạo order thành công', order: newOrder });
@@ -352,7 +394,7 @@ app.post('/orders', async (req, res) => {
   }
 });
 
-// ─── Table Management (Shared Status & Carts) ────────────────────────────────
+// ─── Table Management ─────────────────────────────────────────────────────────
 app.get('/tables', async (req, res) => {
   try {
     const activeCarts = await ActiveCart.find();
@@ -426,10 +468,9 @@ app.get('/orders', async (req, res) => {
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
 
-    // Tinh tong doanh thu cho ket qua lọc (khong phu thuoc phan trang)
     const stats = await Order.aggregate([
       { $match: query },
-      { $group: { _id: null, sum: { $sum: "$total" } } }
+      { $group: { _id: null, sum: { $sum: '$total' } } }
     ]);
     const dayTotal = stats.length > 0 ? stats[0].sum : 0;
 
@@ -508,6 +549,42 @@ app.get('/orders/export-csv', async (req, res) => {
   }
 });
 
+// ─── Push Notifications ──────────────────────────────────────────────────────
+// Trả về VAPID public key cho client
+app.get('/push/vapid-public-key', (req, res) => {
+  if (!vapidPublicKey) return res.status(503).json({ message: 'VAPID chưa sẵn sàng' });
+  res.json({ publicKey: vapidPublicKey });
+});
+
+// Lưu subscription của client
+app.post('/push/subscribe', async (req, res) => {
+  try {
+    const { subscription, email, role } = req.body;
+    if (!subscription?.endpoint) return res.status(400).json({ message: 'Thiếu subscription' });
+
+    await PushSub.findOneAndUpdate(
+      { endpoint: subscription.endpoint },
+      { keys: subscription.keys, email, role },
+      { upsert: true, new: true }
+    );
+    res.json({ message: 'Đã lưu subscription' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Xóa subscription khi logout
+app.post('/push/unsubscribe', async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (endpoint) await PushSub.deleteOne({ endpoint });
+    res.json({ message: 'Đã xóa subscription' });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
 // ─── Revenue ─────────────────────────────────────────────────────────────────
 app.get('/revenue', async (req, res) => {
   try {
@@ -515,7 +592,6 @@ app.get('/revenue', async (req, res) => {
       { $group: { _id: null, totalRevenue: { $sum: '$total' } } },
     ]);
     const totalRevenue = result.length ? result[0].totalRevenue : 0;
-    // Cache 30 giây
     res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=10');
     res.json({ totalRevenue });
   } catch (err) {
