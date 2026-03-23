@@ -744,6 +744,18 @@ app.get('/revenue/export-csv', async (req, res) => {
   }
 });
 
+// Manual print trigger
+app.post('/orders/:id/print', async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order nout found' });
+    const printResult = await printOrderToShop(order);
+    res.json({ printStatus: printResult });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on port ${PORT}`);
 });
