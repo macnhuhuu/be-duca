@@ -148,8 +148,8 @@ const printOrderToShop = async (order) => {
 
       // Set timeout for connection
       const timeout = setTimeout(() => {
-        console.warn('[Printer] Connection timeout');
-        resolve({ success: false, message: 'Máy in không phản hồi (Timeout)' });
+        console.warn(`[Printer] Connection timeout to ${publicIp}`);
+        resolve({ success: false, message: `Máy in (${publicIp}) không phản hồi (Timeout)` });
       }, 5000);
 
       device.open((err) => {
