@@ -67,6 +67,7 @@ const orderSchema = new mongoose.Schema(
     ],
     total: { type: Number, required: true },
     createdByEmail: String,
+    tableNumber: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
@@ -293,24 +294,23 @@ app.get('/categories', async (req, res) => {
 // ─── Orders ──────────────────────────────────────────────────────────────────
 app.post('/orders', async (req, res) => {
   try {
-    const { items, createdByEmail } = req.body;
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Order phải có ít nhất 1 món' });
+    const { items, createdByEmail, tableNumber } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Đơn hàng không có món' });
     }
 
-    const total = items.reduce(
-      (sum, it) => sum + (it.price || 0) * (it.quantity || 1),
-      0
-    );
+    const total = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
 
-    const order = await Order.create({
+    const newOrder = new Order({
       items,
       total,
       createdByEmail: createdByEmail || null,
+      tableNumber: tableNumber || 0,
     });
+    await newOrder.save();
 
     res.set('Cache-Control', 'no-store');
-    return res.status(201).json({ message: 'Tạo order thành công', order });
+    return res.status(201).json({ message: 'Tạo order thành công', order: newOrder });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Lỗi server' });
