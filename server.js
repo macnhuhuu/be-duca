@@ -359,10 +359,12 @@ app.get('/tables', async (req, res) => {
     const tables = [];
     for (let i = 1; i <= 10; i++) {
       const cart = activeCarts.find(c => c.tableNumber === i);
+      const total = cart ? cart.items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0) : 0;
       tables.push({
         number: i,
         isBusy: !!cart && cart.items.length > 0,
         itemCount: cart ? cart.items.length : 0,
+        total,
       });
     }
     return res.json(tables);
@@ -408,14 +410,22 @@ app.delete('/tables/:num/cart', async (req, res) => {
 
 app.get('/orders', async (req, res) => {
   try {
-    const { page = 1, limit = 6 } = req.query;
-    const total = await Order.countDocuments();
-    const orders = await Order.find()
+    const { page = 1, limit = 6, email, date } = req.query;
+    let query = {};
+    if (email) query.createdByEmail = email;
+    if (date) {
+      const start = new Date(`${date}T00:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      query.createdAt = { $gte: start, $lt: end };
+    }
+
+    const total = await Order.countDocuments(query);
+    const orders = await Order.find(query)
       .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
 
-    // Orders không cache vì luôn cần mới nhất
     res.set('Cache-Control', 'no-store');
     res.json({
       items: orders,
