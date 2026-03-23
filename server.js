@@ -361,7 +361,7 @@ app.post('/orders', async (req, res) => {
     );
 
     const billSeq = counter.seq.toString().padStart(6, '0');
-    const billId = `HD${billSeq}`;
+    const billId = billSeq;
 
     // Dùng total từ client (đã trừ chiết khấu) hoặc tính lại
     const subTotal = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
