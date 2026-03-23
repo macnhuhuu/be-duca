@@ -186,37 +186,45 @@ const printOrderToShop = async (order) => {
           .text('15 Huynh Ngoc Hue, Tan An, Hoi An')
           .text('Hotline: 0905 941 552')
           .control('LF')
-          .text('--------------------------------')
-          .control('LF')
+          .text('------------------------------------------')
           .align('ct').style('b').size(1, 1)
           .text(removeAccents(order.tableNumber ? `BAN ${order.tableNumber}` : 'MANG VE'))
-          .size(0, 0).text('PHIEU TINH TIEN')
+          .size(0, 0).style('b').text('PHIEU TINH TIEN')
           .text(`ID: HD#${order.billId || order._id.toString().slice(-6)}`)
+          .control('LF')
           .style('normal').align('lt')
-          .text(`Ngay: ${new Date(order.createdAt).toLocaleDateString('vi-VN')}`)
-          .text(`Gio: ${new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`)
-          .text('--------------------------------')
+          .text(`Ngay: ${new Date(order.createdAt).toLocaleDateString('vi-VN')}      Gio: ${new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`)
+          .text('------------------------------------------')
           .tableCustom([
-            { text: "Ten hang", align: "LEFT", width: 0.35 },
-            { text: "D Gia", align: "CENTER", width: 0.2 },
-            { text: "SL", align: "CENTER", width: 0.1 },
-            { text: "T.Tien", align: "RIGHT", width: 0.35 }
+            { text: "Ten hang", align: "LEFT", width: 0.40 },
+            { text: "D Gia", align: "RIGHT", width: 0.20 },
+            { text: "SL", align: "CENTER", width: 0.10 },
+            { text: "T.Tien", align: "RIGHT", width: 0.30 }
           ]);
 
         items.forEach(it => {
           printer.tableCustom([
-            { text: removeAccents(it.name), align: "LEFT", width: 0.35 },
-            { text: it.price.toLocaleString(), align: "CENTER", width: 0.2 },
-            { text: it.quantity.toString(), align: "CENTER", width: 0.1 },
-            { text: (it.price * it.quantity).toLocaleString(), align: "RIGHT", width: 0.35 }
+            { text: removeAccents(it.name), align: "LEFT", width: 0.40 },
+            { text: it.price.toLocaleString(), align: "RIGHT", width: 0.20 },
+            { text: it.quantity.toString(), align: "CENTER", width: 0.10 },
+            { text: (it.price * it.quantity).toLocaleString(), align: "RIGHT", width: 0.30 }
           ]);
         });
 
-        printer.text('--------------------------------').align('lt')
-          .text(`Tong tien hang:          ${subTotal.toLocaleString()}`)
-          .text(`Chiet khau:              ${discount.toLocaleString()}`)
-          .style('b')
-          .text(`TONG CONG:               ${total.toLocaleString()} d`)
+        printer.text('------------------------------------------').align('lt')
+          .tableCustom([
+            { text: "Tong tien hang:", align: "LEFT", width: 0.6 },
+            { text: subTotal.toLocaleString(), align: "RIGHT", width: 0.4 }
+          ])
+          .tableCustom([
+            { text: "Chiet khau:", align: "LEFT", width: 0.6 },
+            { text: discount.toLocaleString(), align: "RIGHT", width: 0.4 }
+          ])
+          .style('b').size(0, 0)
+          .tableCustom([
+            { text: "TONG CONG:", align: "LEFT", width: 0.6 },
+            { text: `${total.toLocaleString()} d`, align: "RIGHT", width: 0.4 }
+          ])
           .style('normal')
           .control('LF')
           .text(`NVTN: ${staffEmail}`)
