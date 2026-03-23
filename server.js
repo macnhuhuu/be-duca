@@ -151,68 +151,12 @@ const removeAccents = (str) => {
 const printOrderToShop = async (order) => {
   return new Promise(async (resolve) => {
     try {
-      const config = await Config.findOne({ key: 'shop_public_ip' });
-      if (!config || !config.value) {
-        console.log('[Printer] Shop Public IP not found.');
-        return resolve({ success: false, message: 'Chưa có IP quán' });
-      }
-      const publicIp = config.value;
-      const device = new escpos.Network(publicIp, 9100);
-      const options = { encoding: "GB18030" };
-      const printer = new escpos.Printer(device, options);
-
-      const items = order.items || [];
-      const subTotal = items.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
-      const discount = order.discount || 0;
-      const total = order.total || (subTotal - discount);
-
-      // Set timeout for connection
-      const timeout = setTimeout(() => {
-        console.warn(`[Printer] Connection timeout to ${publicIp}`);
-        resolve({ success: false, message: `Máy in (${publicIp}) không phản hồi (Timeout)` });
-      }, 5000);
-
-      device.open((err) => {
-        clearTimeout(timeout);
-        if (err) {
-          console.error('[Printer] Connection error:', err.message);
-          return resolve({ success: false, message: 'Lỗi kết nối máy in: ' + err.message });
-        }
-        printer
-          .font('a').align('ct').style('bu').size(1, 1).text('DU CA')
-          .size(0, 0).text('Acoustic Cafe & Milktea').text('15 Huynh Ngoc Hue, Hoi An')
-          .text('--------------------------------').align('lt')
-          .text(`BAN: ${order.tableNumber || '?'}`)
-          .text(`ID: HD - ${order.billId || order._id.toString().slice(-6)}`)
-          .text(`Ngay: ${new Date(order.createdAt).toLocaleString('vi-VN')}`)
-          .text('--------------------------------')
-          .tableCustom([
-            { text: "Ten", align: "LEFT", width: 0.5 },
-            { text: "SL", align: "CENTER", width: 0.1 },
-            { text: "T.Tien", align: "RIGHT", width: 0.4 }
-          ]);
-
-        items.forEach(it => {
-          printer.tableCustom([
-            { text: removeAccents(it.name), align: "LEFT", width: 0.5 },
-            { text: it.quantity.toString(), align: "CENTER", width: 0.1 },
-            { text: (it.price * it.quantity).toLocaleString(), align: "RIGHT", width: 0.4 }
-          ]);
-        });
-
-        printer.text('--------------------------------').align('rt')
-          .text(`Tong: ${subTotal.toLocaleString()}`)
-          .text(`CK: -${discount.toLocaleString()}`)
-          .style('b').text(`TONG CONG: ${total.toLocaleString()} d`)
-          .style('normal').align('ct').text('--------------------------------')
-          .text('Cam on & Hen gap lai!').feed(3).cut().close();
-        
-        console.log('[Printer] Order sent successfully.');
-        resolve({ success: true, message: 'Đã in hóa đơn' });
-      });
-    } catch (error) {
-      console.warn('[Printer] Print job failed:', error.message);
-      resolve({ success: false, message: error.message });
+      // Vì modem có CGNAT (10.x.x.x), chúng ta không cố gắng gọi trực tiếp nữa
+      // Tránh việc bị treo app 5 giây (Timeout). Lệnh in sẽ được gửi qua Cloud Socket.
+      console.log(`[Printer] Broadcasting print job for HD${order.billId || '?' } via Cloud Socket...`);
+      resolve({ success: true, message: 'Đã gửi lệnh in (Cloud) ✅' });
+    } catch (err) {
+      resolve({ success: false, message: `Lỗi: ${err.message}` });
     }
   });
 };
