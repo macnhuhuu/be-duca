@@ -189,7 +189,7 @@ app.get('/menu', async (req, res) => {
     const items = await MenuItem.find(query)
       .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit))
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
       .select('-__v'); // bỏ __v để giảm payload
 
     // Cache 60 giây – giúp browser/CDN cache response
