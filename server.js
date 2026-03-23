@@ -96,7 +96,10 @@ app.post('/upload', async (req, res) => {
     res.json({ url: result.secure_url });
   } catch (err) {
     console.error('Cloudinary upload error:', err);
-    res.status(500).json({ message: 'Upload ảnh thất bại' });
+    res.status(500).json({ 
+      message: 'Upload ảnh thất bại: ' + (err.message || 'Lỗi không xác định'),
+      details: err.error_code || err.name
+    });
   }
 });
 
