@@ -426,10 +426,18 @@ app.get('/orders', async (req, res) => {
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
 
+    // Tinh tong doanh thu cho ket qua lọc (khong phu thuoc phan trang)
+    const stats = await Order.aggregate([
+      { $match: query },
+      { $group: { _id: null, sum: { $sum: "$total" } } }
+    ]);
+    const dayTotal = stats.length > 0 ? stats[0].sum : 0;
+
     res.set('Cache-Control', 'no-store');
     res.json({
       items: orders,
       total,
+      dayTotal,
       hasMore: (parseInt(page) * parseInt(limit)) < total,
       page: parseInt(page)
     });
