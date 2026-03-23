@@ -184,7 +184,7 @@ const printOrderToShop = async (order) => {
           .font('a').align('ct').style('b').size(1, 1).text('DU CA')
           .size(0, 0).text('COFFEE CAFE & MILKTEA')
           .text('15 Huynh Ngoc Hue, Tan An, Hoi An')
-          .text('Hotline: 091 842 40 09')
+          .text('Hotline: 0905 941 552')
           .control('LF')
           .text('--------------------------------')
           .control('LF')
