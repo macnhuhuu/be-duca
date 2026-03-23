@@ -165,6 +165,7 @@ const printOrderToShop = async (order) => {
       const subTotal = items.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
       const discount = order.discount || 0;
       const total = order.total || (subTotal - discount);
+      const staffEmail = order.createdByEmail ? order.createdByEmail.split('@')[0] : 'N/A';
 
       // Set timeout for connection
       const timeout = setTimeout(() => {
@@ -178,42 +179,58 @@ const printOrderToShop = async (order) => {
           console.error('[Printer] Connection error:', err.message);
           return resolve({ success: false, message: 'Lỗi: ' + err.message });
         }
+        
         printer
-          .font('a').align('ct').style('bu').size(1, 1).text('DU CA')
-          .size(0, 0).text('Acoustic Cafe & Milktea').text('15 Huynh Ngoc Hue, Hoi An')
-          .text('--------------------------------').align('lt')
-          .text(`BAN: ${order.tableNumber || '?'}`)
-          .text(`ID: HD - ${order.billId || order._id.toString().slice(-6)}`)
-          .text(`Ngay: ${new Date(order.createdAt).toLocaleString('vi-VN')}`)
+          .font('a').align('ct').style('b').size(1, 1).text('DU CA')
+          .size(0, 0).text('COFFEE CAFE & MILKTEA')
+          .text('15 Huynh Ngoc Hue, Tan An, Hoi An')
+          .text('Hotline: 091 842 40 09')
+          .control('LF')
+          .text('--------------------------------')
+          .control('LF')
+          .align('ct').style('b').size(1, 1)
+          .text(removeAccents(order.tableNumber ? `BAN ${order.tableNumber}` : 'MANG VE'))
+          .size(0, 0).text('PHIEU TINH TIEN')
+          .text(`ID: HD#${order.billId || order._id.toString().slice(-6)}`)
+          .style('normal').align('lt')
+          .text(`Ngay: ${new Date(order.createdAt).toLocaleDateString('vi-VN')}`)
+          .text(`Gio: ${new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`)
           .text('--------------------------------')
           .tableCustom([
-            { text: "Ten", align: "LEFT", width: 0.5 },
+            { text: "Ten hang", align: "LEFT", width: 0.35 },
+            { text: "D Gia", align: "CENTER", width: 0.2 },
             { text: "SL", align: "CENTER", width: 0.1 },
-            { text: "T.Tien", align: "RIGHT", width: 0.4 }
+            { text: "T.Tien", align: "RIGHT", width: 0.35 }
           ]);
 
         items.forEach(it => {
           printer.tableCustom([
-            { text: removeAccents(it.name), align: "LEFT", width: 0.5 },
+            { text: removeAccents(it.name), align: "LEFT", width: 0.35 },
+            { text: it.price.toLocaleString(), align: "CENTER", width: 0.2 },
             { text: it.quantity.toString(), align: "CENTER", width: 0.1 },
-            { text: (it.price * it.quantity).toLocaleString(), align: "RIGHT", width: 0.4 }
+            { text: (it.price * it.quantity).toLocaleString(), align: "RIGHT", width: 0.35 }
           ]);
         });
 
-        printer.text('--------------------------------').align('rt')
-          .text(`Tong: ${subTotal.toLocaleString()}`)
-          .text(`CK: -${discount.toLocaleString()}`)
-          .style('b').text(`TONG CONG: ${total.toLocaleString()} d`)
-          .style('normal').align('ct').text('--------------------------------')
-          .text('Cam on & Hen gap lai!').feed(3).cut().close();
+        printer.text('--------------------------------').align('lt')
+          .text(`Tong tien hang:          ${subTotal.toLocaleString()}`)
+          .text(`Chiet khau:              ${discount.toLocaleString()}`)
+          .style('b')
+          .text(`TONG CONG:               ${total.toLocaleString()} d`)
+          .style('normal')
+          .control('LF')
+          .text(`NVTN: ${staffEmail}`)
+          .control('LF')
+          .align('ct')
+          .text('Cam On Quy Khach & Hen Gap Lai!!!')
+          .text('Wifi: ilovemusic')
+          .feed(3).cut().close();
         
-        console.log('[Printer] Order sent successfully to Public IP.');
-        // Khi in trực tiếp thành công, mình vẫn emit qua socket (phòng hờ)
-        io.to('shop_room').emit('print_trigger', order);
-        resolve({ success: true, message: 'In hóa đơn thành công ✅' });
+        console.log('[Printer] Detailed Bill sent successfully.');
+        resolve({ success: true, message: 'Đã in hóa đơn thành công ✅' });
       });
     } catch (error) {
-      console.warn('[Printer] Print job failed:', error.message);
+      console.warn('[Printer] Bill generation failed:', error.message);
       resolve({ success: false, message: error.message });
     }
   });
