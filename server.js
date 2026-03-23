@@ -79,6 +79,23 @@ const counterSchema = new mongoose.Schema({
 });
 
 const Counter = mongoose.model('Counter', counterSchema);
+
+const activeCartSchema = new mongoose.Schema({
+  tableNumber: { type: Number, unique: true, required: true },
+  items: [
+    {
+      menuItemId: String,
+      name: String,
+      price: Number,
+      quantity: Number,
+      imageUrl: String,
+    },
+  ],
+  updatedByEmail: String,
+}, { timestamps: true });
+
+const ActiveCart = mongoose.model('ActiveCart', activeCartSchema);
+
 const User = mongoose.model('User', userSchema);
 const MenuItem = mongoose.model('MenuItem', menuItemSchema);
 const Order = mongoose.model('Order', orderSchema);
@@ -332,6 +349,60 @@ app.post('/orders', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// ─── Table Management (Shared Status & Carts) ────────────────────────────────
+app.get('/tables', async (req, res) => {
+  try {
+    const activeCarts = await ActiveCart.find();
+    const tables = [];
+    for (let i = 1; i <= 10; i++) {
+      const cart = activeCarts.find(c => c.tableNumber === i);
+      tables.push({
+        number: i,
+        isBusy: !!cart && cart.items.length > 0,
+        itemCount: cart ? cart.items.length : 0,
+      });
+    }
+    return res.json(tables);
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi lấy trạng thái bàn' });
+  }
+});
+
+app.get('/tables/:num/cart', async (req, res) => {
+  try {
+    const tableNum = parseInt(req.params.num);
+    const cart = await ActiveCart.findOne({ tableNumber: tableNum });
+    return res.json(cart || { tableNumber: tableNum, items: [] });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi lấy giỏ hàng bàn' });
+  }
+});
+
+app.post('/tables/:num/cart', async (req, res) => {
+  try {
+    const tableNum = parseInt(req.params.num);
+    const { items, updatedByEmail } = req.body;
+    const cart = await ActiveCart.findOneAndUpdate(
+      { tableNumber: tableNum },
+      { items, updatedByEmail, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    return res.json(cart);
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi cập nhật giỏ hàng bàn' });
+  }
+});
+
+app.delete('/tables/:num/cart', async (req, res) => {
+  try {
+    const tableNum = parseInt(req.params.num);
+    await ActiveCart.deleteOne({ tableNumber: tableNum });
+    return res.json({ message: 'Đã xóa giỏ hàng bàn ' + tableNum });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi xóa giỏ hàng bàn' });
   }
 });
 
