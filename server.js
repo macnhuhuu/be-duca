@@ -483,15 +483,12 @@ app.post('/orders', async (req, res) => {
     notifyAdmins({ order: savedOrder });
 
     // Tự động in về quán (Direct Print) và lấy kết quả
-    const printResult = await printOrderToShop(savedOrder);
-
-    // Gửi tín hiệu in qua Socket.io (Dành cho Print Hub tại quán)
-    io.to('shop_room').emit('print_trigger', savedOrder);
+    // const printResult = await printOrderToShop(savedOrder);
 
     res.status(201).json({ 
       message: 'Order created', 
       order: savedOrder,
-      printStatus: printResult 
+      printStatus: { success: true, message: 'Đã tạo đơn (Chờ in)' } 
     });
   } catch (err) {
     console.error(err);
