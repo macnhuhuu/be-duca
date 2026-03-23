@@ -195,7 +195,7 @@ const printOrderToShop = async (order) => {
           .text(`ID: HD#${order.billId || order._id.toString().slice(-6)}`)
           .control('LF')
           .style('normal').align('lt')
-          .text(`Ngay: ${new Date(order.createdAt).toLocaleDateString('vi-VN')}      Gio: ${new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`)
+          .text(`Ngay: ${new Date(order.createdAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}      Gio: ${new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}`)
           .text('------------------------------------------')
           .tableCustom([
             { text: "Ten hang", align: "LEFT", width: 0.40 },
@@ -587,9 +587,8 @@ app.get('/orders', async (req, res) => {
     let query = {};
     if (email) query.createdByEmail = email;
     if (date) {
-      const start = new Date(`${date}T00:00:00`);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
+      const start = new Date(`${date}T00:00:00+07:00`);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       query.createdAt = { $gte: start, $lt: end };
     }
 
@@ -630,9 +629,8 @@ app.get('/orders/export-csv', async (req, res) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return res.status(400).json({ message: 'Ngày không hợp lệ' });
       }
-      const start = new Date(`${dateStr}T00:00:00`);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
+      const start = new Date(`${dateStr}T00:00:00+07:00`);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       query = { createdAt: { $gte: start, $lt: end } };
     } else if (type === 'monthly') {
       const monthStr = String(req.query.month || '');
@@ -642,9 +640,13 @@ app.get('/orders/export-csv', async (req, res) => {
       const [yearStr, monthPart] = monthStr.split('-');
       const year = Number(yearStr);
       const month = Number(monthPart);
-      const start = new Date(year, month - 1, 1);
+      const start = new Date(`${yearStr}-${monthPart.padStart(2, '0')}-01T00:00:00+07:00`);
       const end = new Date(year, month, 1);
-      query = { createdAt: { $gte: start, $lt: end } };
+      // For cross-month correctly in server local time vs Vietnam time, 
+      // it is safer to use the same logic:
+      const endD = new Date(start);
+      endD.setMonth(endD.getMonth() + 1);
+      query = { createdAt: { $gte: start, $lt: endD } };
     }
 
     const orders = await Order.find(query).sort({ createdAt: -1 });
@@ -653,8 +655,17 @@ app.get('/orders/export-csv', async (req, res) => {
     const rows = [header.join(',')];
 
     orders.forEach(order => {
-      const createdAt = order.createdAt ? new Date(order.createdAt).toISOString() : '';
+      const d = order.createdAt ? new Date(order.createdAt) : null;
+      let createdAt = '';
+      if (d && !isNaN(d.getTime())) {
+        // Use a format without commas for CSV safety
+        const pad = (v) => v.toString().padStart(2, '0');
+        // Convert to GMT+7 (shorthand for Vietnam)
+        const vnDate = new Date(d.getTime() + 7 * 60 * 60 * 1000);
+        createdAt = `${vnDate.getUTCFullYear()}-${pad(vnDate.getUTCMonth() + 1)}-${pad(vnDate.getUTCDate())} ${pad(vnDate.getUTCHours())}:${pad(vnDate.getUTCMinutes())}:${pad(vnDate.getUTCSeconds())}`;
+      }
       const nhanVien = order.createdByEmail || '';
+
       (order.items || []).forEach(it => {
         const soLuong = it.quantity || 0;
         const donGia = it.price || 0;
@@ -755,9 +766,8 @@ app.get('/revenue/export-csv', async (req, res) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return res.status(400).json({ message: 'Ngày không hợp lệ' });
       }
-      const start = new Date(`${dateStr}T00:00:00`);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
+      const start = new Date(`${dateStr}T00:00:00+07:00`);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       orders.push(...(await Order.find({ createdAt: { $gte: start, $lt: end } })));
       const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
       const csv = ['type,date,billsCount,totalRevenue', `daily,${dateStr},${orders.length},${totalRevenue}`].join('\n');
@@ -775,9 +785,10 @@ app.get('/revenue/export-csv', async (req, res) => {
       const [yearStr, monthPart] = monthStr.split('-');
       const year = Number(yearStr);
       const month = Number(monthPart);
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 1);
-      orders.push(...(await Order.find({ createdAt: { $gte: start, $lt: end } })));
+      const start = new Date(`${yearStr}-${monthPart.padStart(2, '0')}-01T00:00:00+07:00`);
+      const endD = new Date(start);
+      endD.setMonth(endD.getMonth() + 1);
+      orders.push(...(await Order.find({ createdAt: { $gte: start, $lt: endD } })));
       const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
       const csv = ['type,month,billsCount,totalRevenue', `monthly,${monthStr},${orders.length},${totalRevenue}`].join('\n');
       res.set('Cache-Control', 'no-store');
