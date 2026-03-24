@@ -7,6 +7,7 @@ const cors = require('cors');
 const { v2: cloudinary } = require('cloudinary');
 const webpush = require('web-push');
 const escpos = require('escpos');
+const compression = require('compression');
 escpos.Network = require('escpos-network');
 
 const app = express();
@@ -25,6 +26,7 @@ cloudinary.config({
 });
 
 // Middleware
+app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -67,6 +69,9 @@ const menuItemSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+menuItemSchema.index({ isActive: 1, category: 1 });
+menuItemSchema.index({ name: 'text', nameEn: 'text' });
+
 const orderSchema = new mongoose.Schema(
   {
     items: [
@@ -85,6 +90,10 @@ const orderSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ createdByEmail: 1, createdAt: -1 });
+orderSchema.index({ billId: 1 });
 
 const counterSchema = new mongoose.Schema({
   id: { type: String, required: true },
