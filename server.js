@@ -508,14 +508,14 @@ app.post('/orders', async (req, res) => {
     // Notify all admins/chu via push
     notifyAdmins({ order: newOrder });
 
-    // In bill qua mạng (ESC/POS thermal printer) + Socket.io
-    const printResult = await printOrderToShop(newOrder);
+    // In bill: Socket.io (chính) + ESC/POS (phụ, chạy nền không chờ)
     io.to('shop_room').emit('print_trigger', newOrder);
+    printOrderToShop(newOrder).catch(() => {});
 
     res.status(201).json({ 
       message: 'Order created', 
       order: newOrder,
-      printStatus: printResult 
+      printStatus: { success: true, message: 'Đã tạo đơn & gửi lệnh in ✅' } 
     });
   } catch (err) {
     console.error(err);
