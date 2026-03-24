@@ -508,13 +508,14 @@ app.post('/orders', async (req, res) => {
     // Notify all admins/chu via push
     notifyAdmins({ order: newOrder });
 
-    // Trigger print via Socket.io so the shop PC prints automatically
+    // In bill qua mạng (ESC/POS thermal printer) + Socket.io
+    const printResult = await printOrderToShop(newOrder);
     io.to('shop_room').emit('print_trigger', newOrder);
 
     res.status(201).json({ 
       message: 'Order created', 
       order: newOrder,
-      printStatus: { success: true, message: 'Đã tạo đơn & gửi lệnh in' } 
+      printStatus: printResult 
     });
   } catch (err) {
     console.error(err);
