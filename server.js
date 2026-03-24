@@ -505,19 +505,16 @@ app.post('/orders', async (req, res) => {
     });
     await newOrder.save();
 
-    // Gửi push notification đến admin
-    const savedOrder = await newOrder.save();
+    // Notify all admins/chu via push
+    notifyAdmins({ order: newOrder });
 
-    // Notify all admins/chu
-    notifyAdmins({ order: savedOrder });
-
-    // Tự động in về quán (Direct Print) và lấy kết quả
-    // const printResult = await printOrderToShop(savedOrder);
+    // Trigger print via Socket.io so the shop PC prints automatically
+    io.to('shop_room').emit('print_trigger', newOrder);
 
     res.status(201).json({ 
       message: 'Order created', 
-      order: savedOrder,
-      printStatus: { success: true, message: 'Đã tạo đơn (Chờ in)' } 
+      order: newOrder,
+      printStatus: { success: true, message: 'Đã tạo đơn & gửi lệnh in' } 
     });
   } catch (err) {
     console.error(err);
