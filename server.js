@@ -392,7 +392,7 @@ app.get('/menu', async (req, res) => {
       .sort({ createdAt: -1 })
       .select('-__v');
 
-    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=30');
+    res.set('Cache-Control', 'no-store');
     res.json({
       items,
       total,
@@ -413,6 +413,7 @@ app.post('/menu', async (req, res) => {
     }
     const item = await MenuItem.create({ name, nameEn, price, imageUrl, category });
     res.set('Cache-Control', 'no-store');
+    io.emit('menu_updated');
     res.status(201).json(item);
   } catch (err) {
     console.error(err);
@@ -430,6 +431,7 @@ app.put('/menu/:id', async (req, res) => {
     );
     if (!item) return res.status(404).json({ message: 'Không tìm thấy món' });
     res.set('Cache-Control', 'no-store');
+    io.emit('menu_updated');
     res.json(item);
   } catch (err) {
     console.error(err);
@@ -443,6 +445,7 @@ app.patch('/menu/:id', async (req, res) => {
     const item = await MenuItem.findByIdAndUpdate(req.params.id, updates, { new: true });
     if (!item) return res.status(404).json({ message: 'Không tìm thấy món' });
     res.set('Cache-Control', 'no-store');
+    io.emit('menu_updated');
     res.json(item);
   } catch (err) {
     console.error(err);
@@ -454,6 +457,7 @@ app.delete('/menu/:id', async (req, res) => {
   try {
     await MenuItem.findByIdAndDelete(req.params.id);
     res.set('Cache-Control', 'no-store');
+    io.emit('menu_updated');
     res.status(204).end();
   } catch (err) {
     console.error(err);
@@ -465,7 +469,7 @@ app.delete('/menu/:id', async (req, res) => {
 app.get('/categories', async (req, res) => {
   try {
     const categories = await MenuItem.distinct('category', { isActive: true });
-    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    res.set('Cache-Control', 'no-store');
     res.json(categories.filter(Boolean));
   } catch (err) {
     console.error(err);
