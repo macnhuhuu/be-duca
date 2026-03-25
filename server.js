@@ -594,10 +594,15 @@ app.delete('/tables/:num/cart', async (req, res) => {
 
 app.get('/orders', async (req, res) => {
   try {
-    const { page = 1, limit = 6, email, date } = req.query;
+    const { page = 1, limit = 6, email, date, startDate, endDate } = req.query;
     let query = {};
     if (email) query.createdByEmail = email;
-    if (date) {
+    if (startDate && endDate) {
+      query.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    } else if (date) {
       const start = new Date(`${date}T00:00:00+07:00`);
       const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       query.createdAt = { $gte: start, $lt: end };
@@ -632,10 +637,17 @@ app.get('/orders', async (req, res) => {
 // Xuất bill ra CSV
 app.get('/orders/export-csv', async (req, res) => {
   try {
-    const type = String(req.query.type || '').toLowerCase();
+    const { startDate, endDate, type } = req.query;
     let query = {};
 
-    if (type === 'daily') {
+    if (startDate && endDate) {
+      query = {
+        createdAt: {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate) // use $lte to match the frontend inclusive logic
+        }
+      };
+    } else if (String(type || '').toLowerCase() === 'daily') {
       const dateStr = String(req.query.date || '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return res.status(400).json({ message: 'Ngày không hợp lệ' });
