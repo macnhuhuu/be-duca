@@ -827,6 +827,7 @@ app.get('/revenue/export-csv', async (req, res) => {
       endD.setMonth(endD.getMonth() + 1);
       orders.push(...(await Order.find({ createdAt: { $gte: start, $lt: endD } })));
       const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+      
       const csv = ['type,month,billsCount,totalRevenue', `monthly,${monthStr},${orders.length},${totalRevenue}`].join('\n');
       res.set('Cache-Control', 'no-store');
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -871,10 +872,16 @@ app.post('/orders/:id/print', async (req, res) => {
 
 app.delete('/orders/:id', async (req, res) => {
   try {
-    await Order.findByIdAndDelete(req.params.id);
+    const { id } = req.params;
+    console.log(`🗑️ Deleting order: ${id}`);
+    const deleted = await Order.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Không tìm thấy hóa đơn này' });
+    }
     res.json({ message: 'Đã xóa hóa đơn' });
   } catch (err) {
-    res.status(500).json({ message: 'Lỗi khi xóa hóa đơn' });
+    console.error('Delete error:', err);
+    res.status(500).json({ message: 'Lỗi khi xóa hóa đơn: ' + err.message });
   }
 });
 
