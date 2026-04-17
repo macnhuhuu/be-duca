@@ -8,6 +8,7 @@ const { v2: cloudinary } = require('cloudinary');
 const webpush = require('web-push');
 const escpos = require('escpos');
 const compression = require('compression');
+const nodemailer = require('nodemailer');
 escpos.Network = require('escpos-network');
 
 const app = express();
@@ -319,6 +320,48 @@ async function notifyAdmins(payload) {
   }
 }
 
+// ─── Email Notification ─────────────────────────────────────────────────────
+const sendEmailNotification = async (order) => {
+  try {
+    // Hardcoded credentials for Railway deployment
+    const user = 'daylahuu@gmail.com';
+    const pass = 'ridx npgg nrel iuef';
+    const receiver = 'daylahuu@gmail.com';
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass }
+    });
+
+    const itemsHtml = order.items.map(it => 
+      `<li>${it.name} x ${it.quantity} - ${it.price.toLocaleString()}đ</li>`
+    ).join('');
+
+    const mailOptions = {
+      from: `"Duca Coffee" <${user}>`,
+      to: receiver,
+      subject: `[Order Mới] Bàn ${order.tableNumber || 0} - ${order.total.toLocaleString()}đ`,
+      html: `
+        <h2>Có đơn hàng mới tại Duca Coffee!</h2>
+        <p><strong>Bàn:</strong> ${order.tableNumber || 0}</p>
+        <p><strong>Hóa đơn:</strong> HD${order.billId || order._id.toString().slice(-6)}</p>
+        <p><strong>Nhân viên:</strong> ${order.createdByEmail || 'N/A'}</p>
+        <p><strong>Thời gian:</strong> ${new Date(order.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
+        <hr/>
+        <ul>${itemsHtml}</ul>
+        <hr/>
+        <p><strong>Chiết khấu:</strong> ${order.discount.toLocaleString()}đ</p>
+        <p><strong>TỔNG CỘNG:</strong> <h3>${order.total.toLocaleString()}đ</h3></p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('[Email] Notification sent successfully.');
+  } catch (error) {
+    console.error('[Email] Failed to send email:', error.message);
+  }
+};
+
 // ─── Health check ────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.send('Server is running!');
@@ -538,6 +581,12 @@ app.post('/orders', async (req, res) => {
     // In bill: Socket.io (chính) + ESC/POS (phụ, chạy nền không chờ)
     io.to('shop_room').emit('print_trigger', newOrder);
     printOrderToShop(newOrder).catch(() => {});
+
+    // Xoá giỏ hàng bàn sau khi đã in bill (tạo order)
+    await ActiveCart.deleteOne({ tableNumber: tableNumber || 0 });
+
+    // Gửi email thông báo (chạy nền)
+    sendEmailNotification(newOrder).catch(() => {});
 
     res.status(201).json({ 
       message: 'Order created', 
