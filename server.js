@@ -328,23 +328,15 @@ const sendEmailNotification = async (order) => {
     const pass = 'ridx npgg nrel iuef';
     const receiver = 'huusaitokai@gmail.com';
 
-    console.log('[Email] Creating transporter...');
+    console.log('[Email] Creating transporter (service: gmail)...');
     const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // port 587 uses STARTTLS
+      service: 'gmail',
       auth: { user, pass },
-      tls: {
-        rejectUnauthorized: false // Helps with some cloud environments
-      }
+      connectionTimeout: 10000, // 10 giây timeout
+      greetingTimeout: 10000,
+      socketTimeout: 10000
     });
 
-    console.log('[Email] Verifying connection (port 587)...');
-    // Bỏ qua verify nếu nó làm treo process, hoặc bọc trong timeout
-    await transporter.verify().catch(err => {
-      console.log('[Email] Verify warning (continuing anyway):', err.message);
-    });
-    
     console.log('[Email] Preparing mail options...');
     const itemsHtml = (order.items || []).map(it => 
       `<li>${it.name} x ${it.quantity} - ${it.price.toLocaleString()}đ</li>`
