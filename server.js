@@ -324,15 +324,20 @@ async function notifyAdmins(payload) {
 const sendEmailNotification = async (order) => {
   console.log('[Email] Start processing order:', order.billId || order._id);
   try {
-    const user = 'daylahuu@gmail.com';
-    const pass = 'ridx npgg nrel iuef';
-    const receiver = 'huusaitokai@gmail.com';
+    const user = process.env.EMAIL_USER;
+    const pass = process.env.EMAIL_PASS;
+    const receiver = process.env.EMAIL_RECEIVER || user;
+
+    if (!user || !pass) {
+      console.log('[Email] EMAIL_USER or EMAIL_PASS not configured in environment.');
+      return;
+    }
 
     console.log('[Email] Creating transporter (service: gmail)...');
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: { user, pass },
-      connectionTimeout: 10000, // 10 giây timeout
+      connectionTimeout: 10000, 
       greetingTimeout: 10000,
       socketTimeout: 10000
     });
