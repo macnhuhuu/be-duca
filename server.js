@@ -322,6 +322,7 @@ async function notifyAdmins(payload) {
 
 // ─── Email Notification ─────────────────────────────────────────────────────
 const sendEmailNotification = async (order) => {
+  console.log('[Email] Attempting to send notification for order:', order.billId || order._id);
   try {
     // Hardcoded credentials for Railway deployment
     const user = 'daylahuu@gmail.com';
@@ -329,11 +330,17 @@ const sendEmailNotification = async (order) => {
     const receiver = 'huusaitokai@gmail.com';
 
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // use SSL
       auth: { user, pass }
     });
 
-    const itemsHtml = order.items.map(it => 
+    // Kiểm tra kết nối trước khi gửi
+    await transporter.verify();
+    console.log('[Email] SMTP connection verified.');
+
+    const itemsHtml = (order.items || []).map(it => 
       `<li>${it.name} x ${it.quantity} - ${it.price.toLocaleString()}đ</li>`
     ).join('');
 
@@ -342,23 +349,25 @@ const sendEmailNotification = async (order) => {
       to: receiver,
       subject: `[Order Mới] Bàn ${order.tableNumber || 0} - ${order.total.toLocaleString()}đ`,
       html: `
-        <h2>Có đơn hàng mới tại Duca Coffee!</h2>
-        <p><strong>Bàn:</strong> ${order.tableNumber || 0}</p>
-        <p><strong>Hóa đơn:</strong> HD${order.billId || order._id.toString().slice(-6)}</p>
-        <p><strong>Nhân viên:</strong> ${order.createdByEmail || 'N/A'}</p>
-        <p><strong>Thời gian:</strong> ${new Date(order.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
-        <hr/>
-        <ul>${itemsHtml}</ul>
-        <hr/>
-        <p><strong>Chiết khấu:</strong> ${order.discount.toLocaleString()}đ</p>
-        <p><strong>TỔNG CỘNG:</strong> <h3>${order.total.toLocaleString()}đ</h3></p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; padding: 20px;">
+          <h2 style="color: #2563eb; text-align: center;">Có đơn hàng mới tại Duca Coffee!</h2>
+          <p><strong>Bàn:</strong> ${order.tableNumber || 0}</p>
+          <p><strong>Hóa đơn:</strong> HD${order.billId || order._id.toString().slice(-6)}</p>
+          <p><strong>Nhân viên:</strong> ${order.createdByEmail || 'N/A'}</p>
+          <p><strong>Thời gian:</strong> ${new Date(order.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
+          <hr/>
+          <ul style="list-style: none; padding: 0;">${itemsHtml}</ul>
+          <hr/>
+          <p><strong>Chiết khấu:</strong> ${order.discount.toLocaleString()}đ</p>
+          <p style="font-size: 18px; font-weight: bold;">TỔNG CỘNG: <span style="color: #ef4444;">${order.total.toLocaleString()}đ</span></p>
+        </div>
       `
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log('[Email] Notification sent successfully.');
+    const info = await transporter.sendMail(mailOptions);
+    console.log('[Email] Notification sent successfully:', info.messageId);
   } catch (error) {
-    console.error('[Email] Failed to send email:', error.message);
+    console.error('[Email] Failed to send email:', error);
   }
 };
 
