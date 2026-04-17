@@ -17,7 +17,7 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] } 
 });
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_URI = 'mongodb://huumac:huuhuu123@ac-aeferxm-shard-00-00.lfsdea7.mongodb.net:27017,ac-aeferxm-shard-00-01.lfsdea7.mongodb.net:27017,ac-aeferxm-shard-00-02.lfsdea7.mongodb.net:27017/?ssl=true&replicaSet=atlas-zvapv9-shard-0&authSource=admin&appName=Cluster0';
 
 // Cấu hình Cloudinary
 cloudinary.config({
@@ -324,14 +324,9 @@ async function notifyAdmins(payload) {
 const sendEmailNotification = async (order) => {
   console.log('[Email] Start processing order:', order.billId || order._id);
   try {
-    const user = process.env.EMAIL_USER;
-    const pass = process.env.EMAIL_PASS;
-    const receiver = process.env.EMAIL_RECEIVER || user;
-
-    if (!user || !pass) {
-      console.log('[Email] EMAIL_USER or EMAIL_PASS not configured in environment.');
-      return;
-    }
+    const user = 'daylahuu@gmail.com';
+    const pass = 'ridx npgg nrel iuef';
+    const receiver = 'huusaitokai@gmail.com';
 
     console.log('[Email] Creating transporter (service: gmail)...');
     const transporter = nodemailer.createTransport({
