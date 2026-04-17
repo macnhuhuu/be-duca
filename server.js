@@ -430,6 +430,17 @@ app.post('/login', async (req, res) => {
   }
 });
 
+app.get('/users', async (req, res) => {
+  try {
+    const { role } = req.query;
+    const query = role ? { role } : {};
+    const users = await User.find(query).select('-password');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi lấy danh sách user' });
+  }
+});
+
 // ─── Menu ────────────────────────────────────────────────────────────────────
 app.get('/menu', async (req, res) => {
   try {
