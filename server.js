@@ -139,9 +139,23 @@ const PushSub   = mongoose.model('PushSub', pushSubSchema);
 io.on('connection', (socket) => {
   console.log('[Socket] New client connected:', socket.id);
   
-  socket.on('join_shop', () => {
+  socket.on('join_shop', async () => {
     socket.join('shop_room');
     console.log(`[Socket] Client ${socket.id} joined shop_room`);
+    
+    // Tự động cập nhật IP của quán khi Print Agent kết nối
+    const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    if (ip) {
+      const cleanIp = ip.split(',')[0].replace(/^.*:/, '');
+      if (cleanIp && cleanIp !== '1' && cleanIp !== 'localhost') {
+        await Config.findOneAndUpdate(
+          { key: 'shop_public_ip' },
+          { value: cleanIp },
+          { upsert: true }
+        );
+        console.log(`[Socket] Auto-updated shop_public_ip to: ${cleanIp}`);
+      }
+    }
   });
 
   socket.on('disconnect', () => {
@@ -831,10 +845,24 @@ app.get('/revenue/export-csv', async (req, res) => {
 app.post('/orders/:id/print', async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: 'Order nout found' });
-    const printResult = await printOrderToShop(order);
-    // Also trigger via Socket for the Print Hub at the shop
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    
+    // 1. Luôn ưu tiên phát qua Socket (Print Agent) - Tức thì
     io.to('shop_room').emit('print_trigger', order);
+
+    // Kiểm tra xem có agent nào đang online không
+    const sockets = await io.in('shop_room').fetchSockets();
+    if (sockets.length > 0) {
+      // Nếu có ít nhất 1 agent đang chờ, trả về thành công luôn
+      // Chạy printOrderToShop (Direct IP) trong nền để dự phòng
+      printOrderToShop(order).catch(() => {});
+      return res.json({ 
+        printStatus: { success: true, message: 'Đã gửi lệnh in tới máy tính tại quán ✅' } 
+      });
+    }
+
+    // 2. Nếu không có agent, thử in trực tiếp và chờ kết quả (Timeout sẽ lâu hơn)
+    const printResult = await printOrderToShop(order);
     res.json({ printStatus: printResult });
   } catch (err) {
     res.status(500).json({ message: err.message });
