@@ -322,24 +322,30 @@ async function notifyAdmins(payload) {
 
 // ─── Email Notification ─────────────────────────────────────────────────────
 const sendEmailNotification = async (order) => {
-  console.log('[Email] Attempting to send notification for order:', order.billId || order._id);
+  console.log('[Email] Start processing order:', order.billId || order._id);
   try {
-    // Hardcoded credentials for Railway deployment
     const user = 'daylahuu@gmail.com';
     const pass = 'ridx npgg nrel iuef';
     const receiver = 'huusaitokai@gmail.com';
 
+    console.log('[Email] Creating transporter...');
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true, // use SSL
-      auth: { user, pass }
+      port: 587,
+      secure: false, // port 587 uses STARTTLS
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false // Helps with some cloud environments
+      }
     });
 
-    // Kiểm tra kết nối trước khi gửi
-    await transporter.verify();
-    console.log('[Email] SMTP connection verified.');
-
+    console.log('[Email] Verifying connection (port 587)...');
+    // Bỏ qua verify nếu nó làm treo process, hoặc bọc trong timeout
+    await transporter.verify().catch(err => {
+      console.log('[Email] Verify warning (continuing anyway):', err.message);
+    });
+    
+    console.log('[Email] Preparing mail options...');
     const itemsHtml = (order.items || []).map(it => 
       `<li>${it.name} x ${it.quantity} - ${it.price.toLocaleString()}đ</li>`
     ).join('');
@@ -364,10 +370,11 @@ const sendEmailNotification = async (order) => {
       `
     };
 
+    console.log('[Email] Sending mail...');
     const info = await transporter.sendMail(mailOptions);
     console.log('[Email] Notification sent successfully:', info.messageId);
   } catch (error) {
-    console.error('[Email] Failed to send email:', error);
+    console.error('[Email] CRITICAL ERROR:', error);
   }
 };
 
