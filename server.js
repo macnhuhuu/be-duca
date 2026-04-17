@@ -869,6 +869,15 @@ app.post('/orders/:id/print', async (req, res) => {
   }
 });
 
+app.delete('/orders/:id', async (req, res) => {
+  try {
+    await Order.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Đã xóa hóa đơn' });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi khi xóa hóa đơn' });
+  }
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server listening on port ${PORT}`);
 });
