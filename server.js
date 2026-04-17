@@ -326,7 +326,7 @@ const sendEmailNotification = async (order) => {
     // Hardcoded credentials for Railway deployment
     const user = 'daylahuu@gmail.com';
     const pass = 'ridx npgg nrel iuef';
-    const receiver = 'daylahuu@gmail.com';
+    const receiver = 'huusaitokai@gmail.com';
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',
